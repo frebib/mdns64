@@ -1,0 +1,50 @@
+---
+kind: pipeline
+name: tests
+
+steps:
+- name: go tests
+  image: golang:alpine
+  commands:
+  - go build -o mdns64
+
+  - go install golang.org/x/tools/cmd/goimports@latest
+  - go install golang.org/x/lint/golint@latest
+  - test -z "$(gofmt -l . | tee /dev/stderr)"
+  - test -z "$(goimports -local -e -d . | tee /dev/stderr)"
+  - golint ./...
+
+---
+kind: pipeline
+name: docker
+
+depends_on:
+- tests
+
+steps:
+- name: docker build
+  image: registry.spritsail.io/spritsail/docker-build
+  pull: always
+
+- name: docker publish
+  image: registry.spritsail.io/spritsail/docker-publish
+  pull: always
+  settings:
+    registry: registry.spritsail.io
+    login: {from_secret: spritsail_login}
+    repo: frebib/mdns64
+    tags: &tags
+    - latest
+  depends_on:
+    - docker build
+  when:
+    branch:
+    - master
+    event:
+    - push
+
+---
+kind: signature
+hmac: 769620ec6c6bab46500ac5958124e63c527eb4b7bde49bd833cfe0ddbe1f96f9
+
+...
